@@ -23,10 +23,10 @@
         .section { margin-bottom: 8px; border: 1px solid #006600; padding: 8px; border-radius: 5px; }
         h3 { font-size: 11px; margin: 0 0 5px; color: #ffff00; text-align: center; border-bottom: 1px solid #333; text-transform: uppercase; }
         .ship-tag { background: rgba(0,0,0,0.8) !important; color: #00ff00 !important; border: 1px solid #00ff00 !important; font-size: 10px !important; font-weight: bold; padding: 2px 4px; }
-        .nave-porto-card { margin-bottom: 8px; padding: 8px; border: 1px solid #00ff00; background: rgba(0,40,0,0.4); font-size: 11px; }
+        .nave-porto-card { margin-bottom: 8px; padding: 8px; border: 1px solid #004400; background: rgba(0,20,0,0.4); font-size: 11px; }
         button { background: #004400; color: #fff; border: 1px solid #00ff00; cursor: pointer; padding: 5px; font-weight: bold; border-radius: 3px; }
         button:hover { background: #00ff00; color: black; }
-        input { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 5px; width: 50px; text-align: center; }
+        input { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 5px; width: 60px; text-align: center; }
     </style>
 </head>
 <body>
@@ -93,22 +93,26 @@
     for(let h=8; h<=20; h+=2) schedule.push({ t: h*60, id: 'rum', label: `${h}:00 - G. RUM (S.Stefano -> Gig)` });
 
     function preparaGioco() {
-        const h = parseInt(document.getElementById('start-h').value) || 6;
+        const h = parseInt(document.getElementById('start-h').value) || 0;
         const m = parseInt(document.getElementById('start-m').value) || 0;
         gameMinutes = (h * 60) + m;
         
+        // Sblocca audio
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        audioCtx.resume();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
         
         document.getElementById('home-screen').style.display = 'none';
         isPaused = false;
         
-        if (!map) initRadar();
+        // Inizializza flotta se non ancora fatto
+        if (flotta.length === 0) initRadar();
     }
 
     function initRadar() {
-        map = L.map('radar-screen', { zoomControl: false }).setView([42.9, 10.3], 9);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        if (!map) {
+            map = L.map('radar-screen', { zoomControl: false }).setView([42.9, 10.3], 9);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        }
 
         const navi = [
             { id: 'montomoli', name: 'S. MONTOMOLI', speed: 0.0014, cruise: 14, startPort: 'LIVORNO' },
@@ -121,62 +125,4 @@
         ];
 
         navi.forEach(s => {
-            let n = {...s, pos: [...PORTS[s.startPort]], status: 'READY', currentPort: s.startPort, route: [], targetName: '-'};
-            n.marker = L.marker(n.pos, { icon: L.divIcon({ className:'s-icon', html:`<svg width="20" height="10"><path d="M1,5 L19,5 M1,5 L5,1 L17,1 L19,5 L17,9 L5,9 Z" fill="white"/></svg>`, iconSize:[20,10]}) }).addTo(map);
-            n.marker.bindTooltip(n.name, { permanent: true, direction: 'right', className: 'ship-tag' });
-            n.marker.on('click', () => {
-                let v = (n.cruise * (currentMeteo==='VENTO'?0.85:1)).toFixed(1);
-                alert(`UNITÀ: ${n.name}\nVEL: ${v} kts\nROTTA: ${n.status === 'MOVING' ? n.targetName : 'In Porto'}`);
-            });
-            flotta.push(n);
-        });
-    }
-
-    window.inviaNave = (id, dest) => {
-        let n = flotta.find(x => x.id === id);
-        if (currentMeteo==='MOSSO' && (n.id==='jet' || n.id==='acciarello')) return alert("BLOCCO METEO");
-        
-        const s = schedule.find(x => x.id === id && x.t >= gameMinutes - 20);
-        if(s) {
-            let d = Math.abs(gameMinutes - s.t);
-            if(d <= 10) punti += 10; else if(d <= 15) punti += 5;
-            document.getElementById('punti').innerText = punti;
-        }
-        n.route = [PORTS[dest]]; n.targetName = dest; n.status = 'MOVING'; n.currentPort = 'MARE';
-        
-        if (audioCtx) {
-            const osc = audioCtx.createOscillator(); const g = audioCtx.createGain();
-            osc.connect(g); g.connect(audioCtx.destination); osc.frequency.value = 880;
-            g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.5);
-            osc.start(); osc.stop(audioCtx.currentTime + 0.5);
-        }
-    };
-
-    setInterval(() => {
-        if(isPaused) return;
-        gameMinutes++;
-        let h = Math.floor(gameMinutes/60)%24, m = gameMinutes%60;
-        document.getElementById('vts-clock').innerText = (h<10?'0'+h:h)+':'+(m<10?'0'+m:m);
-        document.getElementById('tab-orari').innerHTML = schedule.filter(x => x.t >= gameMinutes).sort((a,b)=>a.t-b.t).slice(0,10).map(x => `<div>${x.label}</div>`).join('');
-        document.getElementById('lista-navi').innerHTML = flotta.filter(n => n.status === 'READY').map(n => `
-            <div class="nave-porto-card">
-                <b>${n.name}</b> (${n.currentPort})<br>
-                ${Object.keys(PORTS).filter(p => p !== n.currentPort).slice(0,2).map(p => `<button onclick="inviaNave('${n.id}','${p}')">${p}</button>`).join(' ')}
-            </div>`).join('');
-        document.getElementById('tab-correnti').innerHTML = flotta.filter(n => n.status === 'MOVING').map(n => `
-            <tr><td>${n.name}</td><td>${n.targetName}</td></tr>`).join('');
-    }, 1000);
-
-    setInterval(() => {
-        if(isPaused) return;
-        flotta.forEach(n => {
-            if (n.status !== 'MOVING') return;
-            let m = (currentMeteo==='VENTO'?0.85:1);
-            let t = n.route[0], dLat = t[0]-n.pos[0], dLng = t[1]-n.pos[1], dist = Math.sqrt(dLat*dLat+dLng*dLng);
-            if (dist < 0.01) { n.status='READY'; n.currentPort=n.targetName; n.pos=[...t]; }
-            else { n.pos[0]+=(dLat/dist)*(n.speed/5)*m; n.pos[1]+=(dLng/dist)*(n.speed/5)*m; n.marker.setLatLng(n.pos); }
-        });
-    }, 50);
-</script>
-</body>
-</html>
+            let n =
