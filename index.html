@@ -1,0 +1,127 @@
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div id="alert-box"></div>
+<div id="radar-screen" style="background: #000;"></div>
+<div id="vts-panel">
+    <div id="vts-clock-box">
+        <small>VTS MONITORING - RELAXED MODE (1x)</small>
+        <div id="vts-clock">14:55</div>
+    </div>
+    <div class="section">
+        <h3>RADAR METEO</h3>
+        <input type="range" id="vento-slider" min="-0.003" max="0.003" step="0.0002" value="0">
+        <p>Vento: <span id="vento-val" style="color: #00ffff; font-size: 1.2em;">0</span> <small>kts</small></p>
+    </div>
+    <div class="section" style="background: rgba(0, 0, 50, 0.4); border-color: #0088ff;">
+        <h3 style="color: #00ffff;">PROSSIME PARTENZE</h3>
+        <div id="tabellone-orari" style="height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
+    </div>
+    <div class="section">
+        <h3>CONSOLE COMANDO</h3>
+        <div id="lista-navi" style="height: 250px; overflow-y: auto;"></div>
+    </div>
+    <div class="section" style="background: rgba(0, 50, 0, 0.4);">
+        <h3 style="color: #00ffff;">STATO LIVE</h3>
+        <table id="tabellone-info">
+            <thead><tr><th>NAVE</th><th>STATO</th><th>DEST.</th></tr></thead>
+            <tbody id="tabellone-body"></tbody>
+        </table>
+    </div>
+</div>
+<style>
+  body, html { margin: 0; padding: 0; height: 100%; background-color: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+  #radar-screen { width: 100vw; height: 100vh; position: absolute; z-index: 1; filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(120%); }
+  #vts-panel { position: absolute; top: 10px; right: 10px; background: rgba(0, 10, 0, 0.95); border: 3px solid #00ff00; color: #00ff00; padding: 15px; z-index: 999; width: 400px; border-radius: 10px; max-height: 95vh; overflow-y: auto; }
+  #vts-clock { font-size: 44px; font-weight: bold; color: #00ffff; text-align: center; font-family: monospace; }
+  .section { margin-bottom: 10px; border: 1px solid #006600; padding: 10px; border-radius: 5px; }
+  h3 { font-size: 14px; margin: 0 0 8px; color: #ffff00; text-align: center; border-bottom: 1px solid #333; }
+  #alert-box { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1001; width: 450px; text-align: center; background: rgba(255, 215, 0, 0.95); color: black; font-weight: bold; padding: 20px; border-radius: 8px; display: none; border: 3px solid white; box-shadow: 0 0 30px yellow; animation: flash 1s infinite; font-size: 18px; }
+  @keyframes flash { 50% { opacity: 0.6; } }
+  .orario-row { border-bottom: 1px solid #004488; padding: 4px 0; color: #aaa; }
+  .orario-row.alert { color: #ffff00; font-weight: bold; background: rgba(255,255,0,0.1); }
+  .nave-card { margin-bottom: 8px; padding: 8px; border: 1px solid #004400; background: rgba(0,20,0,0.3); }
+  button { background: #004400; color: #00ff00; border: 2px solid #00ff00; cursor: pointer; padding: 8px; width: 100%; font-weight: bold; font-size: 13px; margin-top: 5px; }
+  button:hover { background: #00ff00; color: black; }
+  #tabellone-info { width: 100%; font-size: 12px; border-collapse: collapse; font-family: monospace; }
+  #tabellone-info th { border-bottom: 2px solid #00ff00; text-align: left; color: #ffff00; }
+  #tabellone-info td { padding: 8px 5px; border-bottom: 1px solid #003300; }
+</style>
+<script>
+  let map, flotta = [];
+  const PORTS = { PIOMBINO: [42.928, 10.540], PORTOFERRAIO: [42.814, 10.328], LIVORNO: [43.545, 10.298], BASTIA: [42.701, 9.460], RIO_MARINA: [42.816, 10.428], CAVO: [42.863, 10.422] };
+  const schedule = [ { t: 906, label: "15:06 - MARMORICA (Por -> Pio)" }, { t: 920, label: "15:20 - AETHALIA (Pio -> Por)" }, { t: 940, label: "15:40 - OGLASA (Pio -> Por)" }, { t: 990, label: "16:30 - GIRAGLIA (Por -> Pio)" }, { t: 1000, label: "16:40 - MARMORICA (Pio -> Por)" }, { t: 1010, label: "16:50 - AETHALIA (Por -> Pio)" }, { t: 1030, label: "17:10 - OGLASA (Por -> Pio)" }, { t: 1040, label: "17:20 - RIO MARINA BELLA (Pio -> Rio)" }, { t: 1070, label: "17:50 - G. BELLINI (Pio -> Rio)" }, { t: 1110, label: "18:30 - ACCIARELLO (Por -> Pio)" }, { t: 1230, label: "20:30 - OGLASA (Por -> Pio)" } ];
+  function initRadar() {
+    map = L.map('radar-screen', { zoomControl: false }).setView([42.88, 10.4], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const ships = [
+        { id: 'marm', name: 'MARMORICA', color: '#00ffff', speed: 0.0012, startPort: 'PORTOFERRAIO' },
+        { id: 'gira', name: 'GIRAGLIA', color: '#ffff00', speed: 0.0010, startPort: 'PORTOFERRAIO' },
+        { id: 'aeth', name: 'AETHALIA', color: '#00ff00', speed: 0.0012, startPort: 'PIOMBINO' },
+        { id: 'ogla', name: 'OGLASA', color: '#ffff00', speed: 0.0012, startPort: 'PIOMBINO' },
+        { id: 'bell', name: 'G. BELLINI', color: '#ffffff', speed: 0.0010, startPort: 'PIOMBINO' },
+        { id: 'riom', name: 'RIO MARINA BELLA', color: '#ffaa00', speed: 0.0010, startPort: 'PIOMBINO' },
+        { id: 'acci', name: 'ACCIARELLO', color: '#ffffff', speed: 0.0011, startPort: 'PORTOFERRAIO' }
+    ];
+    ships.forEach(s => {
+        let n = {...s, pos: [...PORTS[s.startPort]], status: 'READY', currentPort: s.startPort, route: [], targetName: '-'};
+        n.marker = L.circleMarker(n.pos, { color: n.color, fillColor: n.color, fillOpacity: 1, radius: 8 }).addTo(map);
+        flotta.push(n);
+    });
+  }
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function playAlertSound() {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.type = 'sine'; osc.frequency.value = 520;
+      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+  }
+  window.inviaNave = (id, dest) => {
+    let n = flotta.find(x => x.id === id);
+    let waypoints = n.currentPort === 'PIOMBINO' ? [42.910, 10.480] : [42.83, 10.38];
+    n.route = [ waypoints, PORTS[dest] ];
+    n.targetName = dest;
+    n.status = 'MOVING';
+    n.currentPort = 'MARE';
+  };
+  let gameMinutes = 895; 
+  setInterval(() => {
+    gameMinutes++;
+    let h = Math.floor(gameMinutes / 60) % 24, m = gameMinutes % 60;
+    document.getElementById('vts-clock').innerText = (h<10?'0'+h:h)+':'+(m<10?'0'+m:m);
+    const alertBox = document.getElementById('alert-box');
+    const incoming = schedule.find(s => s.t === gameMinutes + 10);
+    if(incoming) {
+        alertBox.innerText = `[AVVISO VTS] PARTENZA TRA 10 MIN: ${incoming.label}`;
+        alertBox.style.display = 'block';
+        playAlertSound();
+        setTimeout(() => { alertBox.style.display = 'none'; }, 5000);
+    }
+    const tabOrari = document.getElementById('tabellone-orari');
+    tabOrari.innerHTML = schedule.filter(s => s.t >= gameMinutes).slice(0, 5).map(s => {
+        let isAlert = (s.t > gameMinutes && s.t <= gameMinutes + 10);
+        return `<div class="orario-row ${isAlert?'alert':''}">${s.label}</div>`;
+    }).join('');
+    const lista = document.getElementById('lista-navi'), tab = document.getElementById('tabellone-body');
+    lista.innerHTML = flotta.map(n => {
+        let b = n.status === 'READY' ? Object.keys(PORTS).filter(p => p !== n.currentPort && p !== 'BASTIA' && p !== 'LIVORNO' && p !== 'CAVO').map(p => `<button onclick="inviaNave('${n.id}', '${p}')">VIA PER ${p}</button>`).join('') : `<div style="color:#00ffff;text-align:center;padding:10px;border:1px solid #004400;">LIVE NAV</div>`;
+        return `<div class="nave-card"><b>${n.name}</b>${b}</div>`;
+    }).join('');
+    tab.innerHTML = flotta.map(n => `<tr><td style="color:${n.color}">${n.name}</td><td>${n.status==='MOVING'?'ROTTA':'PORTO'}</td><td>${n.status==='MOVING'?n.targetName:n.currentPort}</td></tr>`).join('');
+  }, 1000); 
+  setInterval(() => {
+    flotta.forEach(n => {
+      if (n.status !== 'MOVING' || !n.route.length) return;
+      let t = n.route[0], dLat = t[0]-n.pos[0], dLng = t[1]-n.pos[1], dist = Math.sqrt(dLat*dLat + dLng*dLng);
+      if (dist < 0.005) { 
+          n.route.shift(); 
+          if (!n.route.length) { n.status = 'READY'; n.currentPort = n.targetName; n.pos = [...t]; } 
+      } else { 
+          n.pos[0] += (dLat/dist)*(n.speed/5); n.pos[1] += (dLng/dist)*(n.speed/5); 
+          n.marker.setLatLng(n.pos); 
+      }
+    });
+  }, 50);
+  initRadar();
+</script>
