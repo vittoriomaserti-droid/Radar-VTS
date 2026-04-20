@@ -3,98 +3,82 @@
 <div id="alert-box"></div>
 <div id="radar-screen" style="background: #000;"></div>
 <div id="vts-panel">
-    <div id="vts-clock-box">
-        <div id="punteggio-box" style="color: #ffff00; font-size: 18px; margin-bottom: 5px;">PUNTI: <span id="punti">0</span></div>
-        <small>VTS MONITORING - ANTI-GROUNDING SYSTEM</small>
-        <div id="vts-clock">14:50</div>
+    <div id="vts-header">
+        <div style="color: #ffff00; font-size: 20px; font-weight: bold;">PUNTI: <span id="punti">0</span></div>
+        <small>VTS ELBA COMMAND & CONTROL</small>
+        <div id="vts-clock">06:00</div>
+        <div id="controls" style="margin-top: 10px; display: flex; gap: 5px;">
+            <button id="btn-pause" onclick="togglePause()" style="background: #aa0000;">STOP</button>
+            <button onclick="saveGame()" style="background: #0000aa;">SALVA</button>
+            <button onclick="loadGame()" style="background: #005500;">CARICA</button>
+        </div>
     </div>
-    <div class="section">
-        <h3>METEO</h3>
-        <input type="range" id="vento-slider" min="-0.003" max="0.003" step="0.0002" value="0">
-        <p>Vento: <span id="vento-val" style="color: #00ffff;">0</span> kts</p>
-    </div>
+
     <div class="section" style="background: rgba(0, 0, 50, 0.4); border-color: #0088ff;">
-        <h3>PROSSIME PARTENZE</h3>
-        <div id="tabellone-orari" style="height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
+        <h3>TABELLONE PARTENZE (06:00 - 22:00)</h3>
+        <div id="tabellone-orari" style="height: 150px; overflow-y: auto; font-family: monospace; font-size: 11px;"></div>
     </div>
+
     <div class="section">
-        <h3>CONSOLE COMANDO</h3>
-        <div id="lista-navi" style="height: 250px; overflow-y: auto;"></div>
+        <h3>CONSOLE NAVI IN PORTO</h3>
+        <div id="lista-navi" style="height: 200px; overflow-y: auto;"></div>
     </div>
+
     <div class="section" style="background: rgba(0, 50, 0, 0.4);">
-        <h3>STATO FLOTTA</h3>
+        <h3>MONITORAGGIO FLOTTA</h3>
         <table id="tabellone-info">
             <thead><tr><th>NAVE</th><th>STATO</th><th>DEST.</th></tr></thead>
             <tbody id="tabellone-body"></tbody>
         </table>
     </div>
 </div>
+
 <style>
   body, html { margin: 0; padding: 0; height: 100%; background-color: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
   #radar-screen { width: 100vw; height: 100vh; position: absolute; z-index: 1; filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(120%); }
-  #vts-panel { position: absolute; top: 10px; right: 10px; background: rgba(0, 10, 0, 0.95); border: 3px solid #00ff00; color: #00ff00; padding: 15px; z-index: 999; width: 400px; border-radius: 10px; max-height: 95vh; overflow-y: auto; }
-  #vts-clock { font-size: 44px; font-weight: bold; color: #00ffff; text-align: center; font-family: monospace; }
+  #vts-panel { position: absolute; top: 10px; right: 10px; background: rgba(0, 10, 0, 0.95); border: 3px solid #00ff00; color: #00ff00; padding: 15px; z-index: 999; width: 380px; border-radius: 10px; max-height: 95vh; overflow-y: auto; }
+  #vts-clock { font-size: 38px; font-weight: bold; color: #00ffff; text-align: center; font-family: monospace; }
   .section { margin-bottom: 10px; border: 1px solid #006600; padding: 10px; border-radius: 5px; }
-  h3 { font-size: 14px; margin: 0 0 8px; color: #ffff00; text-align: center; border-bottom: 1px solid #333; }
-  #alert-box { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1001; width: 450px; text-align: center; background: rgba(255, 215, 0, 0.95); color: black; font-weight: bold; padding: 20px; border-radius: 8px; display: none; border: 3px solid white; box-shadow: 0 0 30px yellow; animation: flash 1s infinite; font-size: 18px; }
-  @keyframes flash { 50% { opacity: 0.6; } }
-  .nave-card { margin-bottom: 8px; padding: 8px; border: 1px solid #004400; background: rgba(0,20,0,0.3); }
-  button { background: #004400; color: #00ff00; border: 2px solid #00ff00; cursor: pointer; padding: 8px; width: 100%; font-weight: bold; font-size: 13px; margin-top: 5px; border-radius: 4px; }
-  button:hover { background: #00ff00; color: black; }
-  #tabellone-info { width: 100%; font-size: 12px; border-collapse: collapse; font-family: monospace; }
-  #tabellone-info th { border-bottom: 2px solid #00ff00; text-align: left; color: #ffff00; }
-  #tabellone-info td { padding: 8px 5px; border-bottom: 1px solid #003300; }
-  
-  /* Stile per le icone delle navi */
-  .ship-icon {
-    transition: transform 0.1s linear; /* Rotazione fluida */
-  }
+  h3 { font-size: 12px; margin: 0 0 8px; color: #ffff00; text-align: center; border-bottom: 1px solid #333; text-transform: uppercase; }
+  #alert-box { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1001; width: 400px; text-align: center; background: yellow; color: black; font-weight: bold; padding: 15px; border-radius: 8px; display: none; border: 3px solid white; font-size: 18px; }
+  .nave-card { margin-bottom: 5px; padding: 5px; border: 1px solid #004400; background: rgba(0,30,0,0.3); font-size: 13px; }
+  button { color: #fff; border: none; cursor: pointer; padding: 6px; font-weight: bold; font-size: 11px; border-radius: 3px; flex: 1; }
+  .btn-via { background: #008800; width: 100%; margin-top: 3px; }
+  #tabellone-info { width: 100%; font-size: 11px; border-collapse: collapse; }
+  #tabellone-info th { border-bottom: 1px solid #00ff00; text-align: left; color: #ffff00; }
+  .orario-row { border-bottom: 1px solid #111; padding: 2px 0; color: #888; display: flex; justify-content: space-between; }
+  .orario-row.alert { color: #ffff00; font-weight: bold; }
 </style>
-<script>
-  let map, flotta = [], punti = 0;
-  const PORTS = { 
-    PIOMBINO: [42.928, 10.540], 
-    PORTOFERRAIO: [42.814, 10.328], 
-    RIO_MARINA: [42.816, 10.428],
-    CAVO: [42.863, 10.422]
-  };
 
-  const BOE = {
-      USCITA_PIOMBINO: [42.910, 10.480],
-      CANALE_EST: [42.850, 10.500],
-      APPROCCIO_PORTOFERRAIO: [42.835, 10.380],
-      APPROCCIO_RIO: [42.816, 10.450]
-  };
-  
-  const schedule = [ 
-    { t: 906, shipId: 'marm', label: "15:06 - MARMORICA (Por -> Pio)" }, 
-    { t: 920, shipId: 'aeth', label: "15:20 - AETHALIA (Pio -> Por)" }, 
-    { t: 940, shipId: 'ogla', label: "15:40 - OGLASA (Pio -> Por)" }, 
-    { t: 1040, shipId: 'riom', label: "17:20 - RIO MARINA B. (Pio -> Rio)" }, 
-    { t: 1070, shipId: 'bell', label: "17:50 - G. BELLINI (Pio -> Rio)" } 
+<script>
+  let map, flotta = [], punti = 0, isPaused = false;
+  let gameMinutes = 360; // Parte alle 06:00
+  const PORTS = { PIOMBINO: [42.928, 10.540], PORTOFERRAIO: [42.814, 10.328], RIO_MARINA: [42.816, 10.428] };
+  const BOE = { USCITA_P: [42.910, 10.480], INGRESSO_PF: [42.835, 10.380], INGRESSO_RIO: [42.816, 10.450] };
+
+  const schedule = [
+    { t: 360, id: 'marm', label: "06:00 - MARMORICA (Por -> Pio)" },
+    { t: 390, id: 'ogla', label: "06:30 - OGLASA (Pio -> Por)" },
+    { t: 420, id: 'aeth', label: "07:00 - AETHALIA (Por -> Pio)" },
+    { t: 480, id: 'bell', label: "08:00 - G. BELLINI (Pio -> Rio)" },
+    { t: 540, id: 'riom', label: "09:00 - RIO MARINA B. (Rio -> Pio)" },
+    { t: 600, id: 'marm', label: "10:00 - MARMORICA (Pio -> Por)" },
+    { t: 660, id: 'ogla', label: "11:00 - OGLASA (Por -> Pio)" },
+    { t: 720, id: 'aeth', label: "12:00 - AETHALIA (Pio -> Por)" },
+    { t: 840, id: 'bell', label: "14:00 - G. BELLINI (Rio -> Pio)" },
+    { t: 900, id: 'marm', label: "15:00 - MARMORICA (Por -> Pio)" },
+    { t: 1020, id: 'ogla', label: "17:00 - OGLASA (Pio -> Por)" },
+    { t: 1080, id: 'aeth', label: "18:00 - AETHALIA (Por -> Pio)" },
+    { t: 1140, id: 'riom', label: "19:00 - RIO MARINA B. (Pio -> Rio)" },
+    { t: 1260, id: 'marm', label: "21:00 - MARMORICA (Pio -> Por)" }
   ];
 
-  // Definizione dell'icona della nave come SVG
   function createShipIcon(color) {
     return L.divIcon({
       className: 'ship-icon',
-      html: `<svg width="24" height="12" viewBox="0 0 24 12" xmlns="http://www.w3.org/2000/svg">
-               <path d="M1,6 L23,6 M1,6 L6,1 L20,1 L23,6 L20,11 L6,11 Z M10,1 L14,1 L14,4 L10,4 Z" fill="${color}" stroke="#000" stroke-width="0.5"/>
-             </svg>`,
-      iconSize: [24, 12],
-      iconAnchor: [12, 6] // Centro dell'icona
+      html: `<svg width="24" height="12" viewBox="0 0 24 12"><path d="M1,6 L23,6 M1,6 L6,1 L20,1 L23,6 L20,11 L6,11 Z" fill="${color}" stroke="#000" stroke-width="0.5"/></svg>`,
+      iconSize: [24, 12], iconAnchor: [12, 6]
     });
-  }
-
-  // Calcola l'angolo tra due punti
-  function calculateAngle(lat1, lon1, lat2, lon2) {
-    let dy = lat2 - lat1;
-    let dx = lon2 - lon1;
-    let theta = Math.atan2(dy, dx); // range (-PI, PI]
-    theta *= 180 / Math.PI; // rads to degs
-    theta += 90; // Allinea l'SVG (prua in avanti) con la direzione Est
-    if (theta < 0) theta += 360;
-    return theta;
   }
 
   function initRadar() {
@@ -102,102 +86,78 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const ships = [
         { id: 'marm', name: 'MARMORICA', color: '#00ffff', speed: 0.0012, startPort: 'PORTOFERRAIO' },
-        { id: 'aeth', name: 'AETHALIA', color: '#00ff00', speed: 0.0012, startPort: 'PIOMBINO' },
+        { id: 'aeth', name: 'AETHALIA', color: '#00ff00', speed: 0.0012, startPort: 'PORTOFERRAIO' },
         { id: 'ogla', name: 'OGLASA', color: '#ffff00', speed: 0.0012, startPort: 'PIOMBINO' },
         { id: 'bell', name: 'G. BELLINI', color: '#ffffff', speed: 0.0010, startPort: 'PIOMBINO' },
-        { id: 'riom', name: 'RIO MARINA BELLA', color: '#ffaa00', speed: 0.0010, startPort: 'PIOMBINO' }
+        { id: 'riom', name: 'RIO MARINA BELLA', color: '#ffaa00', speed: 0.0010, startPort: 'RIO_MARINA' }
     ];
     ships.forEach(s => {
-        let n = {...s, pos: [...PORTS[s.startPort]], status: 'READY', currentPort: s.startPort, route: [], targetName: '-'};
-        // Usa la nuova icona della nave invece del cerchio
+        let n = {...s, pos: [...PORTS[s.startPort]], status: 'READY', currentPort: s.startPort, route: []};
         n.marker = L.marker(n.pos, { icon: createShipIcon(n.color) }).addTo(map);
         flotta.push(n);
     });
   }
 
-  window.inviaNave = (id, dest) => {
-    let n = flotta.find(x => x.id === id);
-    let rotta = [];
-
-    if (n.currentPort === 'PIOMBINO') {
-        rotta.push(BOE.USCITA_PIOMBINO);
-        if (dest === 'PORTOFERRAIO') {
-            rotta.push([42.87, 10.42]); 
-            rotta.push(BOE.APPROCCIO_PORTOFERRAIO);
-        } else if (dest === 'RIO_MARINA') {
-            rotta.push(BOE.APPROCCIO_RIO);
-        }
-    } else if (n.currentPort === 'PORTOFERRAIO') {
-        rotta.push(BOE.APPROCCIO_PORTOFERRAIO);
-        rotta.push([42.88, 10.45]);
-        rotta.push(BOE.USCITA_PIOMBINO);
-    } else if (n.currentPort === 'RIO_MARINA') {
-        rotta.push(BOE.APPROCCIO_RIO);
-        rotta.push(BOE.USCITA_PIOMBINO);
-    }
-    
-    rotta.push(PORTS[dest]);
-    n.route = rotta;
-    n.targetName = dest;
-    n.status = 'MOVING';
-    n.currentPort = 'MARE';
-
-    const sched = schedule.find(s => s.shipId === id && Math.abs(s.t - gameMinutes) <= 10);
-    if(sched) {
-        punti += 10;
-        document.getElementById('punti').innerText = punti;
-    }
+  window.togglePause = () => {
+    isPaused = !isPaused;
+    document.getElementById('btn-pause').innerText = isPaused ? "PLAY" : "STOP";
+    document.getElementById('btn-pause').style.background = isPaused ? "#008800" : "#aa0000";
   };
 
-  let gameMinutes = 890; 
+  window.saveGame = () => {
+    const data = { gameMinutes, punti, flotta: flotta.map(n => ({id: n.id, pos: n.pos, status: n.status, currentPort: n.currentPort, targetName: n.targetName})) };
+    localStorage.setItem('vts_save', JSON.stringify(data));
+    alert("Gioco Salvato!");
+  };
+
+  window.loadGame = () => {
+    const data = JSON.parse(localStorage.getItem('vts_save'));
+    if(!data) return alert("Nessun salvataggio trovato");
+    gameMinutes = data.gameMinutes;
+    punti = data.punti;
+    data.flotta.forEach(d => {
+        let n = flotta.find(x => x.id === d.id);
+        Object.assign(n, d);
+        n.marker.setLatLng(n.pos);
+    });
+    document.getElementById('punti').innerText = punti;
+  };
+
+  window.inviaNave = (id, dest) => {
+    let n = flotta.find(x => x.id === id);
+    let r = [];
+    if (n.currentPort === 'PIOMBINO') { r.push(BOE.USCITA_P); r.push(dest === 'RIO_MARINA' ? BOE.INGRESSO_RIO : BOE.INGRESSO_PF); }
+    else { r.push(n.currentPort === 'RIO_MARINA' ? BOE.INGRESSO_RIO : BOE.INGRESSO_PF); r.push(BOE.USCITA_P); }
+    r.push(PORTS[dest]);
+    n.route = r; n.targetName = dest; n.status = 'MOVING'; n.currentPort = 'MARE';
+    
+    const s = schedule.find(x => x.id === id && Math.abs(x.t - gameMinutes) <= 10);
+    if(s) { punti += 10; document.getElementById('punti').innerText = punti; }
+  };
+
   setInterval(() => {
+    if(isPaused) return;
     gameMinutes++;
-    let h = Math.floor(gameMinutes / 60) % 24, m = gameMinutes % 60;
+    let h = Math.floor(gameMinutes/60)%24, m = gameMinutes%60;
     document.getElementById('vts-clock').innerText = (h<10?'0'+h:h)+':'+(m<10?'0'+m:m);
     
-    const alertBox = document.getElementById('alert-box');
-    const incoming = schedule.find(s => s.t === gameMinutes + 10);
-    if(incoming) {
-        alertBox.innerText = `[ALLERTA 10 MIN] PARTENZA: ${incoming.label}`;
-        alertBox.style.display = 'block';
-        setTimeout(() => { alertBox.style.display = 'none'; }, 5000);
-    }
+    document.getElementById('tabellone-orari').innerHTML = schedule.filter(x => x.t >= gameMinutes).map(x => 
+        `<div class="orario-row ${x.t <= gameMinutes+15 ? 'alert' : ''}"><span>${x.label}</span></div>`).join('');
 
-    const tabOrari = document.getElementById('tabellone-orari');
-    tabOrari.innerHTML = schedule.filter(s => s.t >= gameMinutes).slice(0, 5).map(s => {
-        let isAlert = (s.t > gameMinutes && s.t <= gameMinutes + 10);
-        return `<div class="orario-row ${isAlert?'alert':''}">${s.label}</div>`;
-    }).join('');
+    document.getElementById('lista-navi').innerHTML = flotta.filter(n => n.status === 'READY').map(n => 
+        `<div class="nave-card"><b>${n.name}</b> (${n.currentPort})<br>` + 
+        Object.keys(PORTS).filter(p => p !== n.currentPort).map(p => `<button class="btn-via" onclick="inviaNave('${n.id}','${p}')">VIA PER ${p}</button>`).join('') + `</div>`).join('');
 
-    const lista = document.getElementById('lista-navi'), tab = document.getElementById('tabellone-body');
-    lista.innerHTML = flotta.map(n => {
-        let b = n.status === 'READY' ? Object.keys(PORTS).filter(p => p !== n.currentPort).map(p => `<button onclick="inviaNave('${n.id}', '${p}')">VIA PER ${p}</button>`).join('') : `<div style="color:#00ffff;text-align:center;padding:10px;">IN ROTTA</div>`;
-        return `<div class="nave-card"><b>${n.name}</b>${b}</div>`;
-    }).join('');
-    tab.innerHTML = flotta.map(n => `<tr><td style="color:${n.color}">${n.name}</td><td>${n.status==='MOVING'?'ROTTA':'PORTO'}</td><td>${n.status==='MOVING'?n.targetName:n.currentPort}</td></tr>`).join('');
-  }, 1000); 
+    document.getElementById('tabellone-body').innerHTML = flotta.map(n => `<tr><td>${n.name}</td><td>${n.status}</td><td>${n.status==='MOVING'?n.targetName:n.currentPort}</td></tr>`).join('');
+  }, 1000);
 
   setInterval(() => {
+    if(isPaused) return;
     flotta.forEach(n => {
       if (n.status !== 'MOVING' || !n.route.length) return;
       let t = n.route[0], dLat = t[0]-n.pos[0], dLng = t[1]-n.pos[1], dist = Math.sqrt(dLat*dLat + dLng*dLng);
-      
-      // Calcola l'angolo di rotazione
-      let angle = calculateAngle(n.pos[0], n.pos[1], t[0], t[1]);
-      
-      if (dist < 0.005) { 
-          n.route.shift(); 
-          if (!n.route.length) { n.status = 'READY'; n.currentPort = n.targetName; n.pos = [...t]; } 
-      } else { 
-          n.pos[0] += (dLat/dist)*(n.speed/5); n.pos[1] += (dLng/dist)*(n.speed/5); 
-          n.marker.setLatLng(n.pos); 
-          
-          // Ruota l'icona applicando lo stile CSS trasform
-          let iconElement = n.marker.getElement();
-          if (iconElement) {
-            iconElement.style.transform += ` rotate(${angle}deg)`;
-          }
-      }
+      if (dist < 0.005) { n.route.shift(); if (!n.route.length) { n.status = 'READY'; n.currentPort = n.targetName; n.pos = [...t]; } }
+      else { n.pos[0] += (dLat/dist)*(n.speed/5); n.pos[1] += (dLng/dist)*(n.speed/5); n.marker.setLatLng(n.pos); }
     });
   }, 50);
   initRadar();
