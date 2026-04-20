@@ -1,164 +1,301 @@
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+Eccoti il codice completo, pulito e unificato. Ho rimosso tutti i doppioni che avevi nel file originale, ho inserito le nuove rotte (Bastia, Montomoli, Rum), il sistema meteo, le icone bianche e la schermata iniziale.
+
+Copia tutto questo e sostituisci interamente il contenuto del tuo file .html (o dividilo tra HTML e JS se preferisci, ma qui è tutto pronto all'uso).
+
+HTML
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>RADAR VTS - TOSCANA CONTROL</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; background-color: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        
+        /* Schermata Home */
+        #home-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; color: #00ff00; z-index: 10000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border: 5px solid #00ff00; box-sizing: border-box;
+        }
+
+        #radar-screen { width: 100vw; height: 100vh; position: absolute; z-index: 1; }
+        
+        #vts-panel {
+            position: absolute; top: 10px; right: 10px; background: rgba(0, 10, 0, 0.9);
+            border: 2px solid #00ff00; color: #00ff00; padding: 15px; z-index: 999;
+            width: 350px; border-radius: 10px; max-height: 90vh; overflow-y: auto;
+        }
+
+        #vts-clock { font-size: 38px; font-weight: bold; color: #00ffff; text-align: center; font-family: monospace; }
+        .section { margin-bottom: 10px; border: 1px solid #006600; padding: 10px; border-radius: 5px; background: rgba(0,20,0,0.5); }
+        h3 { font-size: 12px; margin: 0 0 8px; color: #ffff00; text-align: center; border-bottom: 1px solid #333; text-transform: uppercase; }
+        
+        .nave-card { margin-bottom: 8px; padding: 8px; border: 1px solid #004400; background: rgba(0,30,0,0.3); font-size: 13px; }
+        
+        button { 
+            background: #004400; color: #fff; border: 1px solid #00ff00; 
+            cursor: pointer; padding: 8px; font-weight: bold; border-radius: 4px; margin-top: 5px;
+        }
+        button:hover { background: #008800; }
+
+        #alert-box {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 1001; width: 400px; text-align: center; background: yellow;
+            color: black; font-weight: bold; padding: 15px; border-radius: 8px; display: none;
+        }
+
+        #tabellone-info { width: 100%; font-size: 11px; border-collapse: collapse; margin-top: 10px; }
+        #tabellone-info th { border-bottom: 1px solid #00ff00; text-align: left; color: #ffff00; }
+        
+        .ship-icon { transition: transform 0.1s linear; }
+    </style>
+</head>
+<body>
+
+<div id="home-screen">
+    <h1 style="font-size: 40px; margin-bottom: 10px;">VTS RADAR SYSTEM</h1>
+    <p style="color: #ffff00;">Comando Operativo Direzione Marittima</p>
+    <div style="display: flex; gap: 20px; margin-top: 20px;">
+        <button onclick="startGame()" style="padding: 15px 30px; font-size: 18px;">NUOVA PARTITA</button>
+        <button onclick="loadGame(); startGame();" style="padding: 15px 30px; font-size: 18px; background: #002244;">CARICA PARTITA</button>
+    </div>
+</div>
+
 <div id="alert-box"></div>
-<div id="radar-screen" style="background: #000;"></div>
+<div id="radar-screen"></div>
+
 <div id="vts-panel">
     <div id="vts-header">
         <div style="color: #ffff00; font-size: 20px; font-weight: bold;">PUNTI: <span id="punti">0</span></div>
-        <small>VTS ELBA COMMAND & CONTROL</small>
+        <small>VTS MONITORING SYSTEM</small>
         <div id="vts-clock">06:00</div>
-        <div id="controls" style="margin-top: 10px; display: flex; gap: 5px;">
-            <button id="btn-pause" onclick="togglePause()" style="background: #aa0000;">STOP</button>
-            <button onclick="saveGame()" style="background: #0000aa;">SALVA</button>
-            <button onclick="loadGame()" style="background: #005500;">CARICA</button>
-        </div>
-    </div>
-
-    <div class="section" style="background: rgba(0, 0, 50, 0.4); border-color: #0088ff;">
-        <h3>TABELLONE PARTENZE (06:00 - 22:00)</h3>
-        <div id="tabellone-orari" style="height: 150px; overflow-y: auto; font-family: monospace; font-size: 11px;"></div>
     </div>
 
     <div class="section">
-        <h3>CONSOLE NAVI IN PORTO</h3>
-        <div id="lista-navi" style="height: 200px; overflow-y: auto;"></div>
+        <h3>CONTROLLO METEO</h3>
+        <select id="meteo-select" onchange="updateMeteo(this.value)" style="width: 100%; background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 5px;">
+            <option value="SOLE">SOLE (Standard)</option>
+            <option value="VENTO">VENTOSO (-15% Speed)</option>
+            <option value="MOSSO">MARE MOSSO (Blocco Jet/Acciarello)</option>
+        </select>
     </div>
 
-    <div class="section" style="background: rgba(0, 50, 0, 0.4);">
+    <div class="section">
+        <h3>PROSSIME PARTENZE</h3>
+        <div id="tabellone-orari" style="height: 100px; overflow-y: auto; font-family: monospace; font-size: 11px;"></div>
+    </div>
+
+    <div class="section">
+        <h3>NAVIGLIO IN PORTO</h3>
+        <div id="lista-navi" style="height: 150px; overflow-y: auto;"></div>
+    </div>
+
+    <div class="section">
         <h3>MONITORAGGIO FLOTTA</h3>
         <table id="tabellone-info">
             <thead><tr><th>NAVE</th><th>STATO</th><th>DEST.</th></tr></thead>
             <tbody id="tabellone-body"></tbody>
         </table>
     </div>
+
+    <button id="btn-pause" onclick="togglePause()" style="background: #aa0000; width: 100%;">STOP</button>
+    <button onclick="saveGame()" style="background: #0000aa; width: 100%; margin-top: 5px;">SALVA</button>
 </div>
 
-<style>
-  body, html { margin: 0; padding: 0; height: 100%; background-color: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
-  #radar-screen { width: 100vw; height: 100vh; position: absolute; z-index: 1; filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(120%); }
-  #vts-panel { position: absolute; top: 10px; right: 10px; background: rgba(0, 10, 0, 0.95); border: 3px solid #00ff00; color: #00ff00; padding: 15px; z-index: 999; width: 380px; border-radius: 10px; max-height: 95vh; overflow-y: auto; }
-  #vts-clock { font-size: 38px; font-weight: bold; color: #00ffff; text-align: center; font-family: monospace; }
-  .section { margin-bottom: 10px; border: 1px solid #006600; padding: 10px; border-radius: 5px; }
-  h3 { font-size: 12px; margin: 0 0 8px; color: #ffff00; text-align: center; border-bottom: 1px solid #333; text-transform: uppercase; }
-  #alert-box { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1001; width: 400px; text-align: center; background: yellow; color: black; font-weight: bold; padding: 15px; border-radius: 8px; display: none; border: 3px solid white; font-size: 18px; }
-  .nave-card { margin-bottom: 5px; padding: 5px; border: 1px solid #004400; background: rgba(0,30,0,0.3); font-size: 13px; }
-  button { color: #fff; border: none; cursor: pointer; padding: 6px; font-weight: bold; font-size: 11px; border-radius: 3px; flex: 1; }
-  .btn-via { background: #008800; width: 100%; margin-top: 3px; }
-  #tabellone-info { width: 100%; font-size: 11px; border-collapse: collapse; }
-  #tabellone-info th { border-bottom: 1px solid #00ff00; text-align: left; color: #ffff00; }
-  .orario-row { border-bottom: 1px solid #111; padding: 2px 0; color: #888; display: flex; justify-content: space-between; }
-  .orario-row.alert { color: #ffff00; font-weight: bold; }
-</style>
-
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  let map, flotta = [], punti = 0, isPaused = false;
-  let gameMinutes = 360; // Parte alle 06:00
-  const PORTS = { PIOMBINO: [42.928, 10.540], PORTOFERRAIO: [42.814, 10.328], RIO_MARINA: [42.816, 10.428] };
-  const BOE = { USCITA_P: [42.910, 10.480], INGRESSO_PF: [42.835, 10.380], INGRESSO_RIO: [42.816, 10.450] };
+    let map, points = 0, isPaused = true, gameMinutes = 360; // Parte alle 06:00
+    let flotta = [], currentMeteo = 'SOLE';
 
-  const schedule = [
-    { t: 360, id: 'marm', label: "06:00 - MARMORICA (Por -> Pio)" },
-    { t: 390, id: 'ogla', label: "06:30 - OGLASA (Pio -> Por)" },
-    { t: 420, id: 'aeth', label: "07:00 - AETHALIA (Por -> Pio)" },
-    { t: 480, id: 'bell', label: "08:00 - G. BELLINI (Pio -> Rio)" },
-    { t: 540, id: 'riom', label: "09:00 - RIO MARINA B. (Rio -> Pio)" },
-    { t: 600, id: 'marm', label: "10:00 - MARMORICA (Pio -> Por)" },
-    { t: 660, id: 'ogla', label: "11:00 - OGLASA (Por -> Pio)" },
-    { t: 720, id: 'aeth', label: "12:00 - AETHALIA (Pio -> Por)" },
-    { t: 840, id: 'bell', label: "14:00 - G. BELLINI (Rio -> Pio)" },
-    { t: 900, id: 'marm', label: "15:00 - MARMORICA (Por -> Pio)" },
-    { t: 1020, id: 'ogla', label: "17:00 - OGLASA (Pio -> Por)" },
-    { t: 1080, id: 'aeth', label: "18:00 - AETHALIA (Por -> Pio)" },
-    { t: 1140, id: 'riom', label: "19:00 - RIO MARINA B. (Pio -> Rio)" },
-    { t: 1260, id: 'marm', label: "21:00 - MARMORICA (Pio -> Por)" }
-  ];
+    const PORTS = {
+        PIOMBINO: [42.928, 10.540],
+        PORTOFERRAIO: [42.814, 10.328],
+        RIO_MARINA: [42.816, 10.428],
+        LIVORNO: [43.550, 10.300],
+        BASTIA: [42.730, 9.450],
+        SAN_STEFANO: [42.435, 11.118],
+        GIGLIO: [42.358, 10.920]
+    };
 
-  function createShipIcon(color) {
-    return L.divIcon({
-      className: 'ship-icon',
-      html: `<svg width="24" height="12" viewBox="0 0 24 12"><path d="M1,6 L23,6 M1,6 L6,1 L20,1 L23,6 L20,11 L6,11 Z" fill="${color}" stroke="#000" stroke-width="0.5"/></svg>`,
-      iconSize: [24, 12], iconAnchor: [12, 6]
-    });
-  }
+    const BOE = {
+        USCITA_P: [42.910, 10.480],
+        INGRESSO_PF: [42.835, 10.380],
+        MID_CHANNEL: [42.870, 10.420]
+    };
 
-  function initRadar() {
-    map = L.map('radar-screen', { zoomControl: false }).setView([42.88, 10.4], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    const ships = [
-        { id: 'marm', name: 'MARMORICA', color: '#00ffff', speed: 0.0012, startPort: 'PORTOFERRAIO' },
-        { id: 'aeth', name: 'AETHALIA', color: '#00ff00', speed: 0.0012, startPort: 'PORTOFERRAIO' },
-        { id: 'ogla', name: 'OGLASA', color: '#ffff00', speed: 0.0012, startPort: 'PIOMBINO' },
-        { id: 'bell', name: 'G. BELLINI', color: '#ffffff', speed: 0.0010, startPort: 'PIOMBINO' },
-        { id: 'riom', name: 'RIO MARINA BELLA', color: '#ffaa00', speed: 0.0010, startPort: 'RIO_MARINA' }
+    // --- ORARI ---
+    const schedule = [
+        { t: 300, id: 'montomoli', label: "05:00 - MONTOMOLI (Liv -> Elba)" },
+        { t: 480, id: 'moby', label: "08:00 - MOBY (Liv -> Bastia)" },
+        { t: 720, id: 'moby', label: "12:00 - MOBY (Bastia -> Liv)" },
+        { t: 840, id: 'montomoli', label: "14:00 - MONTOMOLI (Liv -> Elba)" },
+        { t: 960, id: 'moby', label: "16:00 - MOBY (Bastia -> Liv)" },
+        { t: 1020, id: 'moby', label: "17:00 - MOBY (Liv -> Bastia)" },
+        { t: 1140, id: 'montomoli', label: "19:00 - MONTOMOLI (Elba -> Liv)" }
     ];
-    ships.forEach(s => {
-        let n = {...s, pos: [...PORTS[s.startPort]], status: 'READY', currentPort: s.startPort, route: []};
-        n.marker = L.marker(n.pos, { icon: createShipIcon(n.color) }).addTo(map);
-        flotta.push(n);
-    });
-  }
 
-  window.togglePause = () => {
-    isPaused = !isPaused;
-    document.getElementById('btn-pause').innerText = isPaused ? "PLAY" : "STOP";
-    document.getElementById('btn-pause').style.background = isPaused ? "#008800" : "#aa0000";
-  };
+    // Orari Giuseppe Rum (Ogni 2 ore dalle 8 alle 20)
+    for(let h=8; h<=20; h+=2) {
+        schedule.push({ t: h*60, id: 'rum', label: `${h}:00 - G. RUM (S. Stefano -> Giglio)` });
+    }
 
-  window.saveGame = () => {
-    const data = { gameMinutes, punti, flotta: flotta.map(n => ({id: n.id, pos: n.pos, status: n.status, currentPort: n.currentPort, targetName: n.targetName})) };
-    localStorage.setItem('vts_save', JSON.stringify(data));
-    alert("Gioco Salvato!");
-  };
+    function createShipIcon() {
+        return L.divIcon({
+            className: 'ship-icon',
+            html: `<svg width="24" height="12" viewBox="0 0 24 12"><path d="M1,6 L23,6 M1,6 L6,1 L20,1 L23,6 L20,11 L6,11 Z" fill="white" stroke="#333" stroke-width="0.5"/></svg>`,
+            iconSize: [24, 12], iconAnchor: [12, 6]
+        });
+    }
 
-  window.loadGame = () => {
-    const data = JSON.parse(localStorage.getItem('vts_save'));
-    if(!data) return alert("Nessun salvataggio trovato");
-    gameMinutes = data.gameMinutes;
-    punti = data.punti;
-    data.flotta.forEach(d => {
-        let n = flotta.find(x => x.id === d.id);
-        Object.assign(n, d);
-        n.marker.setLatLng(n.pos);
-    });
-    document.getElementById('punti').innerText = punti;
-  };
+    function calculateAngle(lat1, lon1, lat2, lon2) {
+        let theta = Math.atan2(lat2 - lat1, lon2 - lon1) * 180 / Math.PI;
+        return theta + 90;
+    }
 
-  window.inviaNave = (id, dest) => {
-    let n = flotta.find(x => x.id === id);
-    let r = [];
-    if (n.currentPort === 'PIOMBINO') { r.push(BOE.USCITA_P); r.push(dest === 'RIO_MARINA' ? BOE.INGRESSO_RIO : BOE.INGRESSO_PF); }
-    else { r.push(n.currentPort === 'RIO_MARINA' ? BOE.INGRESSO_RIO : BOE.INGRESSO_PF); r.push(BOE.USCITA_P); }
-    r.push(PORTS[dest]);
-    n.route = r; n.targetName = dest; n.status = 'MOVING'; n.currentPort = 'MARE';
-    
-    const s = schedule.find(x => x.id === id && Math.abs(x.t - gameMinutes) <= 10);
-    if(s) { punti += 10; document.getElementById('punti').innerText = punti; }
-  };
+    function initRadar() {
+        map = L.map('radar-screen', { zoomControl: false, background: '#000' }).setView([42.88, 10.4], 9);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-  setInterval(() => {
-    if(isPaused) return;
-    gameMinutes++;
-    let h = Math.floor(gameMinutes/60)%24, m = gameMinutes%60;
-    document.getElementById('vts-clock').innerText = (h<10?'0'+h:h)+':'+(m<10?'0'+m:m);
-    
-    document.getElementById('tabellone-orari').innerHTML = schedule.filter(x => x.t >= gameMinutes).map(x => 
-        `<div class="orario-row ${x.t <= gameMinutes+15 ? 'alert' : ''}"><span>${x.label}</span></div>`).join('');
+        const naviBase = [
+            { id: 'moby', name: 'MOBY/CORSICA', speed: 0.0020, cruise: 22, startPort: 'LIVORNO' },
+            { id: 'montomoli', name: 'STELIO MONTOMOLI', speed: 0.0014, cruise: 14, startPort: 'LIVORNO' },
+            { id: 'rum', name: 'GIUSEPPE RUM', speed: 0.0011, cruise: 12, startPort: 'SAN_STEFANO' },
+            { id: 'jet', name: 'SCHIOPPARELLO JET', speed: 0.0030, cruise: 32, startPort: 'PIOMBINO' },
+            { id: 'acciarello', name: 'ACCIARELLO', speed: 0.0015, cruise: 16, startPort: 'PIOMBINO' }
+        ];
 
-    document.getElementById('lista-navi').innerHTML = flotta.filter(n => n.status === 'READY').map(n => 
-        `<div class="nave-card"><b>${n.name}</b> (${n.currentPort})<br>` + 
-        Object.keys(PORTS).filter(p => p !== n.currentPort).map(p => `<button class="btn-via" onclick="inviaNave('${n.id}','${p}')">VIA PER ${p}</button>`).join('') + `</div>`).join('');
+        naviBase.forEach(s => {
+            let n = {...s, pos: [...PORTS[s.startPort]], status: 'READY', currentPort: s.startPort, route: [], targetName: '-'};
+            n.marker = L.marker(n.pos, { icon: createShipIcon() }).addTo(map);
+            
+            // Popup al click
+            n.marker.on('click', () => {
+                let sMod = currentMeteo === 'VENTO' ? 0.85 : 1.0;
+                if(currentMeteo === 'MOSSO' && (n.id === 'jet' || n.id === 'acciarello')) sMod = 0;
+                alert(`Nave: ${n.name}\nVelocità: ${(n.cruise * sMod).toFixed(1)} kts\nDestinazione: ${n.targetName}`);
+            });
 
-    document.getElementById('tabellone-body').innerHTML = flotta.map(n => `<tr><td>${n.name}</td><td>${n.status}</td><td>${n.status==='MOVING'?n.targetName:n.currentPort}</td></tr>`).join('');
-  }, 1000);
+            flotta.push(n);
+        });
+    }
 
-  setInterval(() => {
-    if(isPaused) return;
-    flotta.forEach(n => {
-      if (n.status !== 'MOVING' || !n.route.length) return;
-      let t = n.route[0], dLat = t[0]-n.pos[0], dLng = t[1]-n.pos[1], dist = Math.sqrt(dLat*dLat + dLng*dLng);
-      if (dist < 0.005) { n.route.shift(); if (!n.route.length) { n.status = 'READY'; n.currentPort = n.targetName; n.pos = [...t]; } }
-      else { n.pos[0] += (dLat/dist)*(n.speed/5); n.pos[1] += (dLng/dist)*(n.speed/5); n.marker.setLatLng(n.pos); }
-    });
-  }, 50);
-  initRadar();
+    function startGame() {
+        document.getElementById('home-screen').style.display = 'none';
+        isPaused = false;
+    }
+
+    function updateMeteo(val) {
+        currentMeteo = val;
+    }
+
+    window.togglePause = () => {
+        isPaused = !isPaused;
+        document.getElementById('btn-pause').innerText = isPaused ? "PLAY" : "STOP";
+        document.getElementById('btn-pause').style.background = isPaused ? "#008800" : "#aa0000";
+    };
+
+    window.inviaNave = (id, dest) => {
+        let n = flotta.find(x => x.id === id);
+        if (currentMeteo === 'MOSSO' && (n.id === 'jet' || n.id === 'acciarello')) {
+            alert("MARE TROPPO MOSSO PER QUESTA UNITÀ!");
+            return;
+        }
+
+        let r = [];
+        // Logica semplificata rotte
+        if (n.currentPort === 'PIOMBINO' && dest === 'PORTOFERRAIO') {
+            r = [BOE.USCITA_P, BOE.MID_CHANNEL, BOE.INGRESSO_PF, PORTS.PORTOFERRAIO];
+        } else {
+            r = [PORTS[dest]];
+        }
+
+        n.route = r; n.targetName = dest; n.status = 'MOVING'; n.currentPort = 'MARE';
+        
+        // Bonus punti se in orario
+        const s = schedule.find(x => x.id === id && Math.abs(x.t - gameMinutes) <= 15);
+        if(s) { points += 10; document.getElementById('punti').innerText = points; }
+    };
+
+    // Ciclo del tempo
+    setInterval(() => {
+        if(isPaused) return;
+        gameMinutes++;
+        let h = Math.floor(gameMinutes/60)%24, m = gameMinutes%60;
+        document.getElementById('vts-clock').innerText = (h<10?'0'+h:h)+':'+(m<10?'0'+m:m);
+
+        // Alert partenze
+        const incoming = schedule.find(x => x.t === gameMinutes + 10);
+        if(incoming) {
+            const ab = document.getElementById('alert-box');
+            ab.innerText = `ALERT: Partenza ${incoming.label}`;
+            ab.style.display = 'block';
+            setTimeout(() => ab.style.display = 'none', 5000);
+        }
+
+        // UI Updates
+        document.getElementById('tabellone-orari').innerHTML = schedule.filter(x => x.t >= gameMinutes).slice(0,5).map(x => 
+            `<div style="color:${x.t<=gameMinutes+15?'#ff0':'#0f0'}">${x.label}</div>`).join('');
+
+        document.getElementById('lista-navi').innerHTML = flotta.filter(n => n.status === 'READY').map(n => 
+            `<div class="nave-card"><b>${n.name}</b> (${n.currentPort})<br>` + 
+            Object.keys(PORTS).filter(p => p !== n.currentPort).slice(0,3).map(p => 
+            `<button onclick="inviaNave('${n.id}','${p}')">VIA PER ${p}</button>`).join(' ') + `</div>`).join('');
+
+        document.getElementById('tabellone-body').innerHTML = flotta.map(n => 
+            `<tr><td>${n.name}</td><td>${n.status}</td><td>${n.targetName}</td></tr>`).join('');
+    }, 1000);
+
+    // Ciclo movimento
+    setInterval(() => {
+        if(isPaused) return;
+        flotta.forEach(n => {
+            if (n.status !== 'MOVING' || !n.route.length) return;
+            
+            let speedMod = currentMeteo === 'VENTO' ? 0.85 : 1.0;
+            if (currentMeteo === 'MOSSO' && (n.id === 'jet' || n.id === 'acciarello')) return;
+
+            let t = n.route[0], dLat = t[0]-n.pos[0], dLng = t[1]-n.pos[1];
+            let dist = Math.sqrt(dLat*dLat + dLng*dLng);
+
+            if (dist < 0.005) {
+                n.route.shift();
+                if (!n.route.length) { n.status = 'READY'; n.currentPort = n.targetName; n.pos = [...t]; n.targetName = '-'; }
+            } else {
+                n.pos[0] += (dLat/dist)*(n.speed/5)*speedMod;
+                n.pos[1] += (dLng/dist)*(n.speed/5)*speedMod;
+                n.marker.setLatLng(n.pos);
+                
+                let angle = calculateAngle(n.pos[0], n.pos[1], t[0], t[1]);
+                let icon = n.marker.getElement();
+                if(icon) icon.style.transform += ` rotate(${angle}deg)`;
+            }
+        });
+    }, 50);
+
+    window.saveGame = () => {
+        const data = { gameMinutes, points, flotta: flotta.map(n => ({id: n.id, pos: n.pos, status: n.status, currentPort: n.currentPort, targetName: n.targetName})) };
+        localStorage.setItem('vts_save', JSON.stringify(data));
+        alert("Salvataggio completato!");
+    };
+
+    window.loadGame = () => {
+        const data = JSON.parse(localStorage.getItem('vts_save'));
+        if(!data) return;
+        gameMinutes = data.gameMinutes;
+        points = data.points;
+        data.flotta.forEach(d => {
+            let n = flotta.find(x => x.id === d.id);
+            if(n) {
+                Object.assign(n, d);
+                n.marker.setLatLng(n.pos);
+            }
+        });
+        document.getElementById('punti').innerText = points;
+    };
+
+    initRadar();
 </script>
+</body>
+</html>
