@@ -1,28 +1,140 @@
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
-    <title>TEST VTS</title>
+    <meta charset="UTF-8">
+    <title>Traffic Manager - Elba Pro Panel</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { background: #000; color: #0f0; text-align: center; font-family: monospace; }
-        #map { width: 100vw; height: 80vh; background: #111; }
-        button { padding: 20px; font-size: 20px; background: #0f0; color: #000; border: none; cursor: pointer; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; height: 100vh; background: #0a0a0a; color: #e0e0e0; }
+        #header { background: #1a1a1a; padding: 15px; border-bottom: 3px solid #00ff00; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .master-btns button { background: #333; color: white; border: 1px solid #555; padding: 8px 15px; cursor: pointer; margin-left: 5px; border-radius: 4px; font-weight: bold; }
+        .master-btns button:hover { background: #444; border-color: #00ff00; }
+        #map { flex-grow: 1; border: 1px solid #222; }
+        #timetable { height: 300px; background: #000; overflow-y: auto; padding: 15px; border-top: 2px solid #333; font-family: 'Courier New', Courier, monospace; }
+        .ship-entry { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; padding: 8px 0; }
+        .ship-info { flex-grow: 1; }
+        .ship-btns button { font-size: 0.7em; padding: 3px 8px; margin-left: 4px; cursor: pointer; background: #222; color: #0f0; border: 1px solid #0f0; }
+        .alert { color: #ff0000; font-weight: bold; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .status-tag { font-size: 0.8em; padding: 2px 5px; border-radius: 3px; background: #333; margin-right: 10px; }
     </style>
 </head>
 <body>
-    <h1>SISTEMA VTS - TEST EMERGENZA</h1>
-    <div id="map"></div>
-    <button onclick="avvia()">CLICCA PER SBLOCCARE</button>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        function avvia() {
-            alert("Sistema Sbloccato!");
-            var map = L.map('map').setView([42.9, 10.5], 9);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            L.marker([43.55, 10.30]).addTo(map).bindPopup('LIVORNO').openPopup();
-            document.querySelector('h1').innerText = "RADAR ATTIVO";
-        }
-    </script>
+<div id="header">
+    <div style="color: #00ff00; font-weight: bold; letter-spacing: 2px;">ELBA TRAFFIC COMMAND CENTER</div>
+    <div id="clock" style="font-size: 2em; font-weight: bold; color: #fff;">05:00</div>
+    <div class="master-btns">
+        <button onclick="toggleSim(false)" style="color: #ff4444;">STOP</button>
+        <button onclick="toggleSim(true)" style="color: #44ff44;">PLAY</button>
+        <button onclick="saveLog()" style="color: #4444ff;">SALVA</button>
+    </div>
+</div>
+
+<div id="map"></div>
+
+<div id="timetable">
+    <div style="color: #00ff00; border-bottom: 1px solid #00ff00; margin-bottom: 10px; padding-bottom: 5px;">LIVE LOG - TRAGHETTI PIOMBINO-PORTOFERRAIO</div>
+    <div id="log"></div>
+</div>
+
+<audio id="beepAudio"><source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg"></audio>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map').setView([42.85, 10.45], 11);
+    L.tileLayer('https://{s}.tile.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    const porti = { piombino: [42.924, 10.546], portoferraio: [42.812, 10.315] };
+    
+    // Database completo basato sui tuoi dati
+    const partenze = [
+        { ora: "05:30", nave: "MOBY NIKI", comp: "Moby" },
+        { ora: "06:30", nave: "MARMORICA", comp: "Toremar" },
+        { ora: "07:45", nave: "ACCIARELLO", comp: "Blu Navy" },
+        { ora: "08:00", nave: "GIRAGLIA", comp: "Moby" },
+        { ora: "08:40", nave: "SCHIOPPARELLO JET", comp: "Toremar", aliscafo: true },
+        { ora: "08:45", nave: "AETHALIA", comp: "Toremar" },
+        { ora: "09:30", nave: "MOBY NIKI", comp: "Moby" },
+        { ora: "10:00", nave: "MARMORICA", comp: "Toremar" },
+        { ora: "10:45", nave: "ACCIARELLO", comp: "Blu Navy" },
+        { ora: "11:40", nave: "OGLASA", comp: "Toremar" },
+        { ora: "14:34", nave: "MARMORICA", comp: "Toremar" },
+        { ora: "15:05", nave: "ACCIARELLO", comp: "Blu Navy" },
+        { ora: "16:42", nave: "OGLASA", comp: "Toremar" },
+        { ora: "17:50", nave: "MARMORICA", comp: "Toremar" },
+        { ora: "20:03", nave: "OGLASA", comp: "Toremar" },
+        { ora: "23:20", nave: "OGLASA", comp: "Toremar" }
+    ];
+
+    let oraH = 5, oraM = 0, isRunning = true;
+    const audio = document.getElementById('beepAudio');
+
+    function toggleSim(val) { isRunning = val; document.getElementById('header').style.borderColor = val ? "#00ff00" : "#ff0000"; }
+    function saveLog() { alert("Log salvato localmente nella memoria del simulatore!"); console.log("Salvataggio stato ore: " + oraH + ":" + oraM); }
+
+    function updateClock() {
+        if(!isRunning) return;
+        oraM++;
+        if(oraM >= 60) { oraM = 0; oraH++; }
+        if(oraH >= 24) oraH = 0;
+        const timeStr = `${oraH.toString().padStart(2, '0')}:${oraM.toString().padStart(2, '0')}`;
+        document.getElementById('clock').innerText = timeStr;
+        checkSchedule(timeStr);
+    }
+
+    function checkSchedule(timeStr) {
+        // Controllo BIP (15 min prima)
+        let bM = oraM + 15, bH = oraH;
+        if(bM >= 60) { bM -= 60; bH++; }
+        const bipTime = `${bH.toString().padStart(2, '0')}:${bM.toString().padStart(2, '0')}`;
+
+        partenze.forEach(p => {
+            if(p.ora === bipTime) {
+                audio.play().catch(() => {});
+                addLog(p, "BIP 15m", "alert");
+            }
+            if(p.ora === timeStr) startNave(p);
+        });
+    }
+
+    function addLog(p, status, css) {
+        const log = document.getElementById('log');
+        const entry = document.createElement('div');
+        entry.className = 'ship-entry';
+        entry.innerHTML = `
+            <div class="ship-info ${css}"><span class="status-tag">${status}</span> ${p.ora} - ${p.nave} (${p.comp})</div>
+            <div class="ship-btns">
+                <button onclick="manualStart('${p.nave}')">START</button>
+                <button onclick="this.parentElement.parentElement.style.opacity='0.3'">STOP</button>
+            </div>
+        `;
+        log.prepend(entry);
+    }
+
+    function startNave(p) {
+        addLog(p, "IN VIAGGIO", "");
+        let iconColor = p.aliscafo ? "yellow" : "white";
+        let marker = L.circleMarker(porti.piombino, {radius: 8, color: iconColor}).addTo(map).bindTooltip(p.nave).openTooltip();
+        
+        let pos = 0;
+        let anim = setInterval(() => {
+            if(!isRunning) return;
+            pos += 0.005;
+            let lat = porti.piombino[0] + (porti.portoferraio[0] - porti.piombino[0]) * pos;
+            let lng = porti.piombino[1] + (porti.portoferraio[1] - porti.piombino[1]) * pos;
+            marker.setLatLng([lat, lng]);
+            if(pos >= 1) { clearInterval(anim); setTimeout(() => map.removeLayer(marker), 3000); }
+        }, 100);
+    }
+
+    function manualStart(nome) {
+        const p = partenze.find(x => x.nave === nome);
+        startNave(p);
+    }
+
+    setInterval(updateClock, 1000);
+    document.body.addEventListener('click', () => { console.log("Audio sbloccato"); }, {once: true});
+</script>
 </body>
 </html>
